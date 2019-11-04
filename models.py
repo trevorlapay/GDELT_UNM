@@ -252,8 +252,8 @@ def normalize_and_encode(df):
     pd.DataFrame(X_2).to_csv('data/gdelt_encoded_full.csv')
 
 def main():
-    # normalize_and_encode(pd.read_csv('data/gdelt.csv', delim_whitespace=True))
-    generate_model_split_nn(pd.read_csv('data/gdelt_encoded.csv', index_col=0))
+    normalize_and_encode(pd.read_csv('data/gdelt.csv',index_col=False,error_bad_lines=False,dtype='unicode'))
+    # generate_model_split_nn(pd.read_csv('data/gdelt_encoded.csv',index_col=False,error_bad_lines=False,dtype='unicode'))
     # generate_model_split(pd.read_csv('data/gdelt_encoded.csv', index_col=0))
 
 
