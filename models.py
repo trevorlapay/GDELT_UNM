@@ -3,10 +3,9 @@
 """This file generates, trains, and runs a keras neural network on GDELT data"""
 
 import pandas as pd
-import tensorflow
+import tensorflow as tf
 import xgboost as xgb
 
-from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score, train_test_split
@@ -43,15 +42,15 @@ def data_prep(self, df):
 
 # Load and compile a NN model.
 def loadCompileModel():
-    model = tensorflow.keras.models.Sequential()
-    model.add(tensorflow.keras.layers.Flatten(input_shape=(16, )))
-    model.add(Dense(64, activation='relu'))
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Flatten(input_shape=(16, )))
+    model.add(tf.keras.layers.Dense(64, activation='relu'))
     # model.add(BatchNormalization())
-    model.add(Dropout(0.50))
-    model.add(Dense(64, activation='relu'))
+    model.add(tf.keras.layers.Dropout(0.50))
+    model.add(tf.keras.layers.Dense(64, activation='relu'))
     # model.add(BatchNormalization())
-    model.add(Dropout(0.50))
-    model.add(Dense(211, activation='softmax'))
+    model.add(tf.keras.layers.Dropout(0.50))
+    model.add(tf.keras.layers.Dense(211, activation='softmax'))
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=['accuracy'])
     return model
 
@@ -253,8 +252,8 @@ def normalize_and_encode(df):
     pd.DataFrame(X_2).to_csv('data/gdelt_encoded_full.csv')
 
 def main():
-    normalize_and_encode(pd.read_csv('data/gdelt.csv', delim_whitespace=True))
-    # generate_model_split_nn(pd.read_csv('data/gdelt_encoded.csv', index_col=0))
+    # normalize_and_encode(pd.read_csv('data/gdelt.csv', delim_whitespace=True))
+    generate_model_split_nn(pd.read_csv('data/gdelt_encoded.csv', index_col=0))
     # generate_model_split(pd.read_csv('data/gdelt_encoded.csv', index_col=0))
 
 
