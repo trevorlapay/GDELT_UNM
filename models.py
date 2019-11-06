@@ -33,6 +33,9 @@ training_data_filename = os.path.join(dir, '..','data','gdelt_abbrv.csv')
 
 batch_size = 512
 epochs = 300
+cols=['id','Date','Source','Target','CAMEOCode','NumEvents','NumArts','QuadClass','Goldstein','SourceGeoType',
+      'SourceGeoLat','SourceGeoLong','TargetGeoType','TargetGeoLat','TargetGeoLong','ActionGeoType','ActionGeoLat',
+      'ActionGeoLong']
 
 
 # clean dat
@@ -51,7 +54,7 @@ def loadCompileModel():
     # model.add(BatchNormalization())
     model.add(tf.keras.layers.Dropout(0.50))
     model.add(tf.keras.layers.Dense(211, activation='softmax'))
-    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=['accuracy'])
+    model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=['accuracy'])
     return model
 
   # This version of fit takes a validation set. Use in tandem with split method.
@@ -83,7 +86,7 @@ def splitTraining(training_data):
 
     # Get label col for classifier
     Y = training_data["CAMEOCode"]
-    hot = to_categorical(np.array(Y))
+    # hot = to_categorical(np.array(Y))
     # drop label col so we don't train on it.
     training_data = training_data.drop('CAMEOCode', axis=1)
     # normalize
@@ -94,12 +97,14 @@ def splitTraining(training_data):
     # Get list of features.
     features = list(training_data.columns)
     X = training_data[features]
-    (x_train, x_val, y_train, y_val) = train_test_split(X, hot, test_size=0.2,
+    (x_train, x_val, y_train, y_val) = train_test_split(X, Y, test_size=0.2,
                                                         random_state=42)
     return x_train, x_val, y_train, y_val
 
 
 def generate_model_split_nn(training_data):
+    training_data.columns = cols
+    training_data = training_data.drop('id', 1)
     X, x, Y, y = splitTraining(training_data)
     return fitModel(X, x, Y, y), X, x, Y, y
 
@@ -244,16 +249,20 @@ def get_abbrv():
     df_abbrv = df.head(100000)
     df_abbrv.to_csv('data/gdelt_abbrv.csv')
 
-def normalize_and_encode(df):
+def normalize_and_encode(filename):
     le = preprocessing.LabelEncoder()
     # FIT AND TRANSFORM
     # use df.apply() to apply le.fit_transform to all columns
-    X_2 = df.apply(le.fit_transform)
-    pd.DataFrame(X_2).to_csv('data/gdelt_encoded_full.csv')
+    for chunk in pd.read_csv(filename, delim_whitespace=True, chunksize=1000000):
+        try:
+            X_2 = chunk.apply(le.fit_transform)
+            pd.DataFrame(X_2).to_csv('data/gdelt_encoded_full.csv',  mode='a', header=False)
+        except TypeError:
+            pass
 
 def main():
-    normalize_and_encode(pd.read_csv('data/gdelt.csv',index_col=False,error_bad_lines=False,dtype='unicode'))
-    # generate_model_split_nn(pd.read_csv('data/gdelt_encoded.csv',index_col=False,error_bad_lines=False,dtype='unicode'))
+    normalize_and_encode('data/gdelt.csv')
+    generate_model_split_nn(pd.read_csv('data/gdelt_encoded_full.csv',low_memory=False).head(1000000))
     # generate_model_split(pd.read_csv('data/gdelt_encoded.csv', index_col=0))
 
 
