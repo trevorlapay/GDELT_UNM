@@ -31,8 +31,8 @@ model_h5 = os.path.join(dir, 'model.h5')
 dir = os.path.dirname(__file__)
 training_data_filename = os.path.join(dir, '..','data','gdelt_abbrv.csv')
 
-batch_size = 512
-epochs = 300
+batch_size = 2056
+epochs = 50
 cols=['id','Date','Source','Target','CAMEOCode','NumEvents','NumArts','QuadClass','Goldstein','SourceGeoType',
       'SourceGeoLat','SourceGeoLong','TargetGeoType','TargetGeoLat','TargetGeoLong','ActionGeoType','ActionGeoLat',
       'ActionGeoLong']
@@ -53,7 +53,7 @@ def loadCompileModel():
     model.add(tf.keras.layers.Dense(64, activation='relu'))
     # model.add(BatchNormalization())
     model.add(tf.keras.layers.Dropout(0.50))
-    model.add(tf.keras.layers.Dense(211, activation='softmax'))
+    model.add(tf.keras.layers.Dense(530, activation='softmax'))
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=['accuracy'])
     return model
 
@@ -79,6 +79,7 @@ def fitModel(x_train, x_val, y_train, y_val):
     plt.xlabel('Epoch')
     plt.legend(['Train', 'Test'], loc='upper left')
     plt.show()
+    serialize(model)
     return model
 
 # Split a given data set into both training and testing sets. Useful when tinkering with model.
@@ -185,13 +186,6 @@ def generate_decision_tree(self, new_tree=True, show=True, validate=True, traini
     self.pickle_model(dt)
     return dt
 
-def generate_model_direct(self, X, Y):
-    dt = self.dt_construct()
-    # sm = SMOTE(random_state=12, ratio=1)
-    # X, Y = sm.fit_sample(X, Y)
-    dt.fit(X, Y)
-    self.pickle_model(dt)
-    return dt
 
 def grid_search(self, X, Y):
     params = {
@@ -249,20 +243,32 @@ def get_abbrv():
     df_abbrv = df.head(100000)
     df_abbrv.to_csv('data/gdelt_abbrv.csv')
 
-def normalize_and_encode(filename):
+def encode():
+    df = pd.read_csv('data/gdelt.csv', delim_whitespace=True, chunksize=20000000)
+
     le = preprocessing.LabelEncoder()
-    # FIT AND TRANSFORM
-    # use df.apply() to apply le.fit_transform to all columns
-    for chunk in pd.read_csv(filename, delim_whitespace=True, chunksize=1000000):
-        try:
-            X_2 = chunk.apply(le.fit_transform)
-            pd.DataFrame(X_2).to_csv('data/gdelt_encoded_full.csv',  mode='a', header=False)
-        except TypeError:
-            pass
+    for chunk in df:
+        chunk['CAMEOCode'] = pd.to_numeric(chunk['CAMEOCode'], errors='coerce').fillna(0)
+        X_2 = chunk.apply(le.fit_transform)
+        pd.DataFrame(X_2).to_csv('data/gdelt_encoded_full.csv', mode='a', header=False)
+
+# Serialize weights.
+def serialize(model):
+    # serialize model to JSON
+    model_json = model.to_json()
+    with open("model.json", "w") as json_file:
+        json_file.write(model_json)
+    model.save_weights("model.h5")
+    print("Saved to disk")
 
 def main():
-    normalize_and_encode('data/gdelt.csv')
-    generate_model_split_nn(pd.read_csv('data/gdelt_encoded_full.csv',low_memory=False).head(1000000))
+    # encode()
+    # df = pd.read_csv('data/gdelt_encoded_full.csv', low_memory=False)
+    # df.columns = cols
+    # print(str(df.CAMEOCode.unique()))
+    df = pd.read_csv('data/gdelt_encoded_full.csv', low_memory=False)
+    df.columns = cols
+    generate_model_split_nn(df)
     # generate_model_split(pd.read_csv('data/gdelt_encoded.csv', index_col=0))
 
 
