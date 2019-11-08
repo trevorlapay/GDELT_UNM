@@ -32,7 +32,7 @@ dir = os.path.dirname(__file__)
 training_data_filename = os.path.join(dir, '..','data','gdelt_abbrv.csv')
 
 batch_size = 2056
-epochs = 50
+epochs = 530
 cols=['id','Date','Source','Target','CAMEOCode','NumEvents','NumArts','QuadClass','Goldstein','SourceGeoType',
       'SourceGeoLat','SourceGeoLong','TargetGeoType','TargetGeoLat','TargetGeoLong','ActionGeoType','ActionGeoLat',
       'ActionGeoLong']
@@ -45,7 +45,7 @@ def data_prep(self, df):
 
 # Load and compile a NN model.
 def loadCompileModel():
-    model = tf.keras.models.Sequential()
+    model = tf.keras.models.Sequential()serialize
     model.add(tf.keras.layers.Flatten(input_shape=(16, )))
     model.add(tf.keras.layers.Dense(64, activation='relu'))
     # model.add(BatchNormalization())
