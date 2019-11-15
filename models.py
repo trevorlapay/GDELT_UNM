@@ -5,7 +5,7 @@
 import pandas as pd
 import tensorflow as tf
 import xgboost as xgb
-
+from sklearn.feature_selection import mutual_info_classif, SelectKBest
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score, train_test_split
@@ -15,7 +15,6 @@ import numpy as np
 from sklearn.model_selection import GridSearchCV
 import os
 import sklearn.preprocessing as preprocessing
-import matplotlib.pyplot as plt
 import xgboost as xgb
 import matplotlib.pyplot as plt
 from xgboost import plot_tree
@@ -31,34 +30,36 @@ model_h5 = os.path.join(dir, 'model.h5')
 dir = os.path.dirname(__file__)
 training_data_filename = os.path.join(dir, '..','data','gdelt_abbrv.csv')
 
-batch_size = 2056
-epochs = 530
-cols=['id','Date','Source','Target','CAMEOCode','NumEvents','NumArts','QuadClass','Goldstein','SourceGeoType',
-      'SourceGeoLat','SourceGeoLong','TargetGeoType','TargetGeoLat','TargetGeoLong','ActionGeoType','ActionGeoLat',
-      'ActionGeoLong']
+batch_size = 32896
+epochs = 20
+cols=['Source','Target','CAMEOCode','NumEvents','NumArts','QuadClass','Goldstein','SourceGeoType',
+      'TargetGeoType', 'ActionGeoType','Month']
+# 1 = statement_positive
+
+def data_prep(df):
+    '''remove fields that directly correlate to label'''
+    df = df.drop('QuadClass', axis=1)
+    df = df.drop('Goldstein', axis=1)
+    return df
 
 
-# clean dat
-def data_prep(self, df):
-    return df.fillna(0)
-
-
-# Load and compile a NN model.
 def loadCompileModel():
-    model = tf.keras.models.Sequential()serialize
-    model.add(tf.keras.layers.Flatten(input_shape=(16, )))
-    model.add(tf.keras.layers.Dense(64, activation='relu'))
+    '''Load and compile a NN model.'''
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Flatten(input_shape=(8  , )))
+    model.add(tf.keras.layers.Dense(32, activation='relu'))
     # model.add(BatchNormalization())
     model.add(tf.keras.layers.Dropout(0.50))
-    model.add(tf.keras.layers.Dense(64, activation='relu'))
+    model.add(tf.keras.layers.Dense(32, activation='relu'))
     # model.add(BatchNormalization())
     model.add(tf.keras.layers.Dropout(0.50))
-    model.add(tf.keras.layers.Dense(530, activation='softmax'))
+    model.add(tf.keras.layers.Dense(21, activation='softmax'))
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=['accuracy'])
     return model
 
-  # This version of fit takes a validation set. Use in tandem with split method.
+
 def fitModel(x_train, x_val, y_train, y_val):
+    '''This version of fit takes a validation set. Use in tandem with split method.'''
     model = loadCompileModel()
 
     history =model.fit(x_train, y_train, batch_size=batch_size, shuffle=True, epochs=epochs, verbose=1, validation_data=(x_val, y_val))
@@ -104,10 +105,9 @@ def splitTraining(training_data):
 
 
 def generate_model_split_nn(training_data):
-    training_data.columns = cols
-    training_data = training_data.drop('id', 1)
     X, x, Y, y = splitTraining(training_data)
     return fitModel(X, x, Y, y), X, x, Y, y
+
 
 def generate_model_split(training_data=None):
     # Get label col for classifier
@@ -120,6 +120,7 @@ def generate_model_split(training_data=None):
     features = list(training_data.columns)
     #  print("* features:", features, sep="\n")
     X = training_data[features]
+    X = data_prep(X)
     dt = dt_construct()
     # use sklearn's train_test_split for accuracy testing.
     # I tested this out a number of different ways. Gini always provided the best results.
@@ -130,61 +131,6 @@ def generate_model_split(training_data=None):
     dt.fit(X_train, y_train)
     y_pred = dt.predict(X_test)
     return y_pred.ravel(), y_test
-
-def generate_decision_tree(self, new_tree=True, show=True, validate=True, training_data=None,
-                           verbose=False, grid=False):
-    """Create a decision tree using sklearn and data_prep method."""
-    if not new_tree:
-        return self.load_pickle_model()
-
-    if training_data is None:
-        training_data = self.loadFile(training_data_filename)
-
-    training_data = self.data_prep(training_data)
-    # Get label col for classifier
-    Y = training_data["Label"]
-    print("Value counts: " + str(Y.value_counts()))
-    # drop label col so we don't train on it.
-    training_data = training_data.drop('Label', axis=1)
-
-    # Get list of features.
-    features = list(training_data.columns)
-    # print("* features:", features, sep="\n")
-    X = training_data[features]
-    dt = self.dt_construct()
-    if grid:
-        self.grid_search(X, Y)
-        return
-    elif validate:
-        # use sklearn's train_test_split for accuracy testing.
-        # I tested this out a number of different ways. Gini always provided the best results.
-        # We may want to lower max depth to 3 in practice to avoid overfitting, but this is the model
-        # that gets me the best accuracy with this data.
-
-        X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=66)
-        X_train = pd.DataFrame(X_train, columns=training_data.columns)
-        if verbose:
-            eval_set = [(X_train, y_train), (X_test, y_test)]
-            eval_metric = ["auc", "error"]
-            dt.fit(X_train, y_train, eval_metric=eval_metric, eval_set=eval_set, verbose=True)
-            plt.plot(dt.evals_result()['validation_0']['error'])
-            plt.ylabel('Error')
-            plt.show()
-        else:
-            dt.fit(X_train, y_train)
-        y_pred = dt.predict(X_test)
-        print("Accuracy is ", accuracy_score(y_test, y_pred) * 100)
-
-    else:
-        dt.fit(X, Y)
-
-    # Show me the tree
-    if show:
-        # plot single tree
-        plot_tree(dt)
-        plt.show()
-    self.pickle_model(dt)
-    return dt
 
 
 def grid_search(self, X, Y):
@@ -221,6 +167,7 @@ def grid_search(self, X, Y):
     results = pd.DataFrame(random_search.cv_results_)
     results.to_csv('xgb-grid-search-results-01.csv', index=False)
 
+
 def dt_construct():
     return xgb.XGBClassifier(base_score=0.5, booster='gbtree', colsample_bylevel=1,
           colsample_bynode=1, colsample_bytree=0.5, gamma=5,
@@ -230,6 +177,7 @@ def dt_construct():
           reg_alpha=0, reg_lambda=1, scale_pos_weight=1, seed=None,
           silent=True, subsample=0.6, verbosity=1)
 
+
 def xgboost():
     gdelt_df = pd.read_csv('data/gdelt_encoded.csv', index_col=0)
     label_df = gdelt_df['CAMEOCode']
@@ -238,19 +186,45 @@ def xgboost():
     scores = cross_val_score(pl_xgb, gdelt_df, label_df, cv=2)
     print('Accuracy for XGBoost Classifier : ', scores.mean())
 
+
 def get_abbrv():
-    df = pd.read_csv('data/gdelt.csv', delim_whitespace=True)
+    df = pd.read_csv('data/gdelt.csv', delim_whitespace=True,
+                     low_memory=False, dtype={0: 'str', 1: 'str', 2: 'str',
+                                              3: 'str', 4: 'int32', 5: 'int8',
+                                              6: 'float64', 7: 'float64', 8: 'str',
+                                              9: 'float64', 10: 'float64', 11: 'float64',
+                                              12: 'float64', 13: 'float64', 14: 'float64',
+                                              15: 'float64', 16: 'float64', 17: 'float64'})
     df_abbrv = df.head(100000)
     df_abbrv.to_csv('data/gdelt_abbrv.csv')
 
-def encode():
-    df = pd.read_csv('data/gdelt.csv', delim_whitespace=True, chunksize=20000000)
 
+def encode():
+    df = pd.read_csv('data/gdelt.csv',  chunksize=20000000, delim_whitespace=True,
+                     low_memory=False, dtype={0: 'str', 1: 'str', 2: 'str',
+                                              3: 'str', 4: 'int32', 5: 'int8',
+                                              6: 'float64', 7: 'float64', 8: 'str',
+                                              9: 'float64', 10: 'float64', 11: 'float64',
+                                              12: 'float64', 13: 'float64', 14: 'float64',
+                                              15: 'float64', 16: 'float64'})
+    df_transform = pd.DataFrame()
     le = preprocessing.LabelEncoder()
     for chunk in df:
-        chunk['CAMEOCode'] = pd.to_numeric(chunk['CAMEOCode'], errors='coerce').fillna(0)
-        X_2 = chunk.apply(le.fit_transform)
-        pd.DataFrame(X_2).to_csv('data/gdelt_encoded_full.csv', mode='a', header=False)
+        chunk['CAMEOCode'] = chunk['CAMEOCode'].astype(str).str[:2]
+        chunk['CAMEOCode'] = pd.to_numeric(chunk.CAMEOCode, errors='coerce', downcast='integer').fillna(0).astype(int)
+        chunk['QuadClass'] = pd.to_numeric(chunk.QuadClass, errors='coerce', downcast='integer')
+        chunk['Goldstein'] = pd.to_numeric(chunk.Goldstein, errors='coerce', downcast='integer')
+        chunk['SourceGeoType'] = pd.to_numeric(chunk.SourceGeoType, errors='coerce', downcast='integer').fillna(0).astype(int)
+        chunk['TargetGeoType'] = pd.to_numeric(chunk.SourceGeoType, errors='coerce', downcast='integer').fillna(0).astype(int)
+        chunk['ActionGeoType'] = pd.to_numeric(chunk.SourceGeoType, errors='coerce', downcast='integer').fillna(0).astype(int)
+        chunk['Month'] = chunk['Date'].astype(str).str[4:6].astype(int)
+        chunk['Year'] = chunk['Date'].astype(str).str[0:4].astype(int)
+        chunk['Source'] = le.fit_transform(chunk['Source'])
+        chunk['Target'] = le.fit_transform(chunk['Target'])
+
+        df_transform = pd.concat([df_transform, chunk])
+    pd.DataFrame(df_transform).to_csv('data/gdelt_encoded_full.csv', index=False)
+
 
 # Serialize weights.
 def serialize(model):
@@ -261,15 +235,50 @@ def serialize(model):
     model.save_weights("model.h5")
     print("Saved to disk")
 
+def plot_selectbest(df):
+    y = df['CAMEOCode']
+    X = df.drop(['CAMEOCode'], 1)
+    selector = SelectKBest(score_func=mutual_info_classif, k='all')
+    selector.fit(X, y)
+    x_val = X.columns
+
+    plt.bar(x_val, selector.scores_, color='b')
+    plt.xticks(x_val, x_val, rotation='vertical')
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_correlation(df):
+    plt.matshow(df.corr())
+    plt.show()
+
+def print_unique_label(df):
+    print(str(df.CAMEOCode.unique()))
+
+def load_file():
+    '''return a manageable encoded dataframe from file'''
+    mylist = []
+
+    for chunk in pd.read_csv('data/gdelt_encoded_full.csv', usecols=cols, sep=',', chunksize=20000, dtype={0: 'int32',
+                                                                            1: 'int32', 2: 'int32',
+                                                                             3: 'int32', 4: 'int32', 5:'int32',
+                                                                             6: 'float64',7: 'float64', 8: 'int16'}):
+        mylist.append(chunk)
+    big_data = pd.concat(mylist, axis=0)
+    # Drop fishy cameocodes that are out of bounds.
+    indexNames = big_data[big_data['CAMEOCode'] > 20].index
+    big_data.drop(indexNames, inplace=True)
+    return data_prep(big_data)
+
+
 def main():
+
     # encode()
-    # df = pd.read_csv('data/gdelt_encoded_full.csv', low_memory=False)
-    # df.columns = cols
-    # print(str(df.CAMEOCode.unique()))
-    df = pd.read_csv('data/gdelt_encoded_full.csv', low_memory=False)
-    df.columns = cols
+    df = load_file()
+    # plot_selectbest(df)
+    # plot_correlation(df)
     generate_model_split_nn(df)
-    # generate_model_split(pd.read_csv('data/gdelt_encoded.csv', index_col=0))
+    # generate_model_split_nn(df)
 
 
 if __name__ == "__main__": main()
