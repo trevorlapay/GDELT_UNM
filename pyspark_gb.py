@@ -1,6 +1,8 @@
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import GBTClassifier
 from pyspark.ml.feature import StringIndexer, VectorIndexer, VectorAssembler
+import org.apache.spark.ml.classification.{RandomForestClassificationModel, RandomForestClassifier}
+import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql import functions as F
 # Load and parse the data file, converting it to a DataFrame.
@@ -13,7 +15,7 @@ for col in data.columns:
   )
 # Index labels, adding metadata to the label column.
 # Fit on whole dataset to include all labels in index.
-gbt = GBTClassifier(labelCol="CAMEOCode", featuresCol="features", maxIter=10)
+rf = RandomForestClassifier(labelCol="CAMEOCode", featuresCol="features", numTrees=10)
 # Automatically identify categorical features, and index them.
 # Set maxCategories so features with > 4 distinct values are treated as continuous.
 numericCols = ['Source','Target','NumEvents','NumArts','SourceGeoType',
@@ -22,7 +24,7 @@ assemblerInputs = numericCols
 data.printSchema()
 assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features")
 stages += [assembler]
-stages += [gbt]
+stages += [rf]
 pipeline = Pipeline(stages = stages)
 (trainingData, testData) = data.randomSplit([0.7, 0.3])
 pipelineModel = pipeline.fit(trainingData)
