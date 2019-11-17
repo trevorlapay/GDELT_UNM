@@ -15,8 +15,9 @@ ignore = ['CAMEOCode']
 assembler = VectorAssembler(
     inputCols=[x for x in data.columns if x not in ignore],
     outputCol='features')
+train_data = (assembler.transform(data).select("CAMEOCode", "features"))
 featureIndexer =\
-    VectorIndexer(inputCol="features", outputCol="indexedFeatures", maxCategories=4).fit(assembler)
+    VectorIndexer(inputCol="features", outputCol="indexedFeatures", maxCategories=4).fit(train_data)
 
 # Split the data into training and test sets (30% held out for testing)
 (trainingData, testData) = data.randomSplit([0.7, 0.3])
