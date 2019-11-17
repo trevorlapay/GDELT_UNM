@@ -13,7 +13,7 @@ for col in data.columns:
   )
 # Index labels, adding metadata to the label column.
 # Fit on whole dataset to include all labels in index.
-
+gbt = GBTClassifier(labelCol="CAMEOCode", featuresCol="features", maxIter=10)
 # Automatically identify categorical features, and index them.
 # Set maxCategories so features with > 4 distinct values are treated as continuous.
 numericCols = ['Source','Target','NumEvents','NumArts','SourceGeoType',
@@ -22,9 +22,17 @@ assemblerInputs = numericCols
 data.printSchema()
 assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features")
 stages += [assembler]
+stages += [gbt]
 pipeline = Pipeline(stages = stages)
-pipelineModel = pipeline.fit(data)
-df = pipelineModel.transform(data)
-selectedCols = ['CAMEOCode', 'features'] + data.columns
-df = df.select(selectedCols)
+(trainingData, testData) = data.randomSplit([0.7, 0.3])
+pipelineModel = pipeline.fit(trainingData)
+
+predictions = pipelineModel.transform(testData)
+predictions.select("prediction", "CAMEOCode", "features").show(5)
+
+# Select (prediction, true label) and compute test error
+evaluator = MulticlassClassificationEvaluator(
+    labelCol="CAMEOCode", predictionCol="prediction", metricName="accuracy")
+accuracy = evaluator.evaluate(predictions)
+print("Test Error = %g" % (1.0 - accuracy))
 
