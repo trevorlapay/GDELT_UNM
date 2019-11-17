@@ -2,10 +2,15 @@ from pyspark.ml import Pipeline
 from pyspark.ml.classification import GBTClassifier
 from pyspark.ml.feature import StringIndexer, VectorIndexer, VectorAssembler
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-
+from pyspark.sql import functions as F
 # Load and parse the data file, converting it to a DataFrame.
 data = spark.read.format("csv").option("header", "true").load("data/gdelt_encoded_full.csv")
 stages = []
+for col in data.columns:
+  df = df.withColumn(
+    col,
+    F.col(col).cast("double")
+  )
 # Index labels, adding metadata to the label column.
 # Fit on whole dataset to include all labels in index.
 
