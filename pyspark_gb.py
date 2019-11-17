@@ -25,6 +25,6 @@ stages += [assembler]
 pipeline = Pipeline(stages = stages)
 pipelineModel = pipeline.fit(data)
 df = pipelineModel.transform(data)
-selectedCols = ['label', 'features'] + data.columns
+selectedCols = ['CAMEOCode', 'features'] + data.columns
 df = df.select(selectedCols)
 
