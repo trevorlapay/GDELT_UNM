@@ -11,7 +11,7 @@ data = spark.read.format("csv").option("header", "true").load("data/gdelt_encode
 labelIndexer = StringIndexer(inputCol="CAMEOCode", outputCol="indexedLabel").fit(data)
 # Automatically identify categorical features, and index them.
 # Set maxCategories so features with > 4 distinct values are treated as continuous.
-ignore = ['CAMEOCode'']
+ignore = ['CAMEOCode']
 assembler = VectorAssembler(
     inputCols=[x for x in data.columns if x not in ignore],
     outputCol='features')
