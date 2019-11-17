@@ -15,11 +15,5 @@ stages += [labelIndexer]
 numericCols = ['Source','Target','NumEvents','NumArts','SourceGeoType',
       'TargetGeoType', 'ActionGeoType','Month']
 assemblerInputs = numericCols
-assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features")
-stages += [assembler]
-pipeline = Pipeline(stages = stages)
-pipelineModel = pipeline.fit(data)
-df = pipelineModel.transform(data)
-selectedCols = ['label', 'features'] + data.columns
-df = df.select(selectedCols)
-df.printSchema()
+data.show()
+
