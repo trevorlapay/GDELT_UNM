@@ -7,7 +7,7 @@ from pyspark.sql import functions as F
 data = spark.read.format("csv").option("header", "true").load("data/gdelt_encoded_full.csv")
 stages = []
 for col in data.columns:
-  df = df.withColumn(
+  data = data.withColumn(
     col,
     F.col(col).cast("double")
   )
