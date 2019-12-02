@@ -30,30 +30,36 @@ model_h5 = os.path.join(dir, 'model.h5')
 dir = os.path.dirname(__file__)
 training_data_filename = os.path.join(dir, '..','data','gdelt_abbrv.csv')
 
-batch_size = 32896
+batch_size = 32896*2*2*2
 epochs = 20
-cols=['Source','Target','CAMEOCode','NumEvents','NumArts','QuadClass','Goldstein','SourceGeoType',
-      'TargetGeoType', 'ActionGeoType','Month']
+cols=['Source','Target','CAMEOCode','NumEvents','NumArts','SourceGeoType',
+      'TargetGeoType', 'ActionGeoType','SourceGeoLatInt','TargetGeoLatInt', 'ActionGeoLatInt','Month']
 # 1 = statement_positive
 
 def data_prep(df):
     '''remove fields that directly correlate to label'''
-    df = df.drop('QuadClass', axis=1)
-    df = df.drop('Goldstein', axis=1)
+    try:
+        df = df.drop('QuadClass', axis=1)
+    except:
+        pass
+    try:
+        df = df.drop('Goldstein', axis=1)
+    except:
+        pass
     return df
 
 
 def loadCompileModel():
     '''Load and compile a NN model.'''
     model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.Flatten(input_shape=(8  , )))
-    model.add(tf.keras.layers.Dense(32, activation='relu'))
+    model.add(tf.keras.layers.Flatten(input_shape=(11  , )))
+    model.add(tf.keras.layers.Dense(64, activation='relu'))
     # model.add(BatchNormalization())
     model.add(tf.keras.layers.Dropout(0.50))
-    model.add(tf.keras.layers.Dense(32, activation='relu'))
+    model.add(tf.keras.layers.Dense(64, activation='relu'))
     # model.add(BatchNormalization())
     model.add(tf.keras.layers.Dropout(0.50))
-    model.add(tf.keras.layers.Dense(21, activation='softmax'))
+    model.add(tf.keras.layers.Dense(23, activation='softmax'))
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=['accuracy'])
     return model
 
@@ -109,7 +115,7 @@ def generate_model_split_nn(training_data):
     return fitModel(X, x, Y, y), X, x, Y, y
 
 
-def generate_model_split(training_data=None):
+def  generate_model_split(training_data=None):
     # Get label col for classifier
     Y = training_data["CAMEOCode"]
 
@@ -130,6 +136,10 @@ def generate_model_split(training_data=None):
     # fit and predict with accuracy report.
     dt.fit(X_train, y_train)
     y_pred = dt.predict(X_test)
+    predictions = [round(value) for value in y_pred]
+    # evaluate predictions
+    accuracy = accuracy_score(y_test, predictions)
+    print("Accuracy: %.2f%%" % (accuracy * 100.0))
     return y_pred.ravel(), y_test
 
 
@@ -179,8 +189,9 @@ def dt_construct():
 
 
 def xgboost():
-    gdelt_df = pd.read_csv('data/gdelt_encoded.csv', index_col=0)
+    gdelt_df = load_file().head(50000000)
     label_df = gdelt_df['CAMEOCode']
+    gdelt_df.drop(['CAMEOCode'], 1)
     pl_xgb = Pipeline(steps=
                       [('xgboost', xgb.XGBClassifier(objective='multi:softmax'))])
     scores = cross_val_score(pl_xgb, gdelt_df, label_df, cv=2)
@@ -209,14 +220,29 @@ def encode():
                                               15: 'float64', 16: 'float64'})
     df_transform = pd.DataFrame()
     le = preprocessing.LabelEncoder()
+
     for chunk in df:
+        # We do a little feature swapping. Note that 42 = 20 (there are no examples in 20)
+        # We do this to spread out the values in the 4-level label, since it is unbalanced
+        chunk['CAMEOCode'] = chunk['CAMEOCode'].replace('042', '20')
+        chunk['CAMEOCode'] = chunk['CAMEOCode'].replace('043', '21')
+        chunk['CAMEOCode'] = chunk['CAMEOCode'].replace('046', '22')
+        # There are not enough values in the dataset to justify these, so I move them to the end of the
+        # feature set. THey get removed on read.
+        chunk['CAMEOCode'] = chunk['CAMEOCode'].replace('044', '51')
+        chunk['CAMEOCode'] = chunk['CAMEOCode'].replace('041', '52')
+        chunk['CAMEOCode'] = chunk['CAMEOCode'].replace('045', '53')
+        chunk['CAMEOCode'] = chunk['CAMEOCode'].replace('020', '54')
         chunk['CAMEOCode'] = chunk['CAMEOCode'].astype(str).str[:2]
         chunk['CAMEOCode'] = pd.to_numeric(chunk.CAMEOCode, errors='coerce', downcast='integer').fillna(0).astype(int)
         chunk['QuadClass'] = pd.to_numeric(chunk.QuadClass, errors='coerce', downcast='integer')
         chunk['Goldstein'] = pd.to_numeric(chunk.Goldstein, errors='coerce', downcast='integer')
-        chunk['SourceGeoType'] = pd.to_numeric(chunk.SourceGeoType, errors='coerce', downcast='integer').fillna(0).astype(int)
-        chunk['TargetGeoType'] = pd.to_numeric(chunk.SourceGeoType, errors='coerce', downcast='integer').fillna(0).astype(int)
-        chunk['ActionGeoType'] = pd.to_numeric(chunk.SourceGeoType, errors='coerce', downcast='integer').fillna(0).astype(int)
+        chunk['SourceGeoType'] = pd.to_numeric(chunk.SourceGeoType, downcast='integer').fillna(0).astype(int)
+        chunk['TargetGeoType'] = pd.to_numeric(chunk.TargetGeoType, downcast='integer').fillna(0).astype(int)
+        chunk['ActionGeoType'] = pd.to_numeric(chunk.ActionGeoType, downcast='integer').fillna(0).astype(int)
+        chunk['SourceGeoLatInt'] = pd.to_numeric(chunk.SourceGeoLat, downcast='integer').fillna(0).astype(int)
+        chunk['TargetGeoLatInt'] = pd.to_numeric(chunk.TargetGeoLat, downcast='integer').fillna(0).astype(int)
+        chunk['ActionGeoLatInt'] = pd.to_numeric(chunk.ActionGeoLat, downcast='integer').fillna(0).astype(int)
         chunk['Month'] = chunk['Date'].astype(str).str[4:6].astype(int)
         chunk['Year'] = chunk['Date'].astype(str).str[0:4].astype(int)
         chunk['Source'] = le.fit_transform(chunk['Source'])
@@ -248,6 +274,20 @@ def plot_selectbest(df):
     plt.show()
 
 
+def plot_cameo_hist(df):
+    # matplotlib histogram
+    plt.hist(df['CAMEOCode'], color='blue', edgecolor='black',
+             bins=np.arange(24) - 0.5, label=range(1, 23, 1))
+    # Add label
+    plt.title('Label Histogram')
+    plt.xlabel('Cameo Code')
+    plt.ylabel('# of Examples')
+    plt.xticks(np.arange(1, 23, 1))
+    plt.xlim([-1, 23])
+    plt.ticklabel_format(style='plain')
+    plt.show()
+
+
 def plot_correlation(df):
     plt.matshow(df.corr())
     plt.show()
@@ -259,14 +299,14 @@ def load_file():
     '''return a manageable encoded dataframe from file'''
     mylist = []
 
-    for chunk in pd.read_csv('data/gdelt_encoded_full.csv', usecols=cols, sep=',', chunksize=20000, dtype={0: 'int32',
-                                                                            1: 'int32', 2: 'int32',
-                                                                             3: 'int32', 4: 'int32', 5:'int32',
-                                                                             6: 'float64',7: 'float64', 8: 'int16'}):
+    for chunk in pd.read_csv('data/gdelt_encoded_full.csv', usecols=cols, sep=',', chunksize=20000, dtype={0: 'int16',
+                                                                            1: 'int16', 2: 'int16',
+                                                                            3: 'int16', 4: 'int16', 5: 'float64',
+                                                                            6:'int16', 7:'int8', 8:'int8', 9:'int8', 10: 'int16'}):
         mylist.append(chunk)
     big_data = pd.concat(mylist, axis=0)
     # Drop fishy cameocodes that are out of bounds.
-    indexNames = big_data[big_data['CAMEOCode'] > 20].index
+    indexNames = big_data[big_data['CAMEOCode'] > 22].index
     big_data.drop(indexNames, inplace=True)
     return data_prep(big_data)
 
@@ -275,10 +315,11 @@ def main():
 
     # encode()
     df = load_file()
+    # plot_cameo_hist(df)
     # plot_selectbest(df)
     # plot_correlation(df)
-    generate_model_split_nn(df)
-    # generate_model_split_nn(df)
+    # xgboost()
+    generate_model_split(df.head(40000000))
 
 
 if __name__ == "__main__": main()
