@@ -33,6 +33,7 @@ model_h5 = os.path.join(dir, 'model.h5')
 dir = os.path.dirname(__file__)
 training_data_filename = os.path.join(dir, '..','data','gdelt_abbrv.csv')
 
+look_back = 50
 batch_size = 32896*2*2*2
 epochs = 20
 cols=['Source','Target','CAMEOCode','NumEvents','NumArts','SourceGeoType',
@@ -210,7 +211,7 @@ def get_abbrv():
                                               12: 'float64', 13: 'float64', 14: 'float64',
                                               15: 'float64', 16: 'float64', 17: 'float64'})
     df_abbrv = df.head(100000)
-    df_abbrv.to_csv('data/gdelt_abbrv.csv')
+    df_abbrv.to_csv('data/gdelt_abbrv.csv', index=False)
 
 
 def encode():
@@ -313,39 +314,79 @@ def load_file():
     big_data.drop(indexNames, inplace=True)
     return data_prep(big_data)
 
+def lstm_data_build():
+    df = load_file()
+    df_transform = pd.DataFrame()
+    # 11263 = USA
+    df_transform = df.loc[df['Source'] == 11263]
+    df_transform.to_csv('gdelt_usa.csv')
+    print(str(len(df_transform)))
+    features_set = []
+    labels = []
+    for i in range(look_back, len(df_transform)):
+        features_set.append(df_transform[i - look_back:i].values)
+        labels.append(df_transform.iloc[[i]]['CAMEOCode'].values)
+    features_set, labels = np.array(features_set), np.array(labels)
+    features_set = np.reshape(features_set, (features_set.shape[0], features_set.shape[1], 12))
+    np.save('np_lstm_feat.npy', features_set)
+    np.save('np_lstm_labels.npy', labels)
 
 def lstm_model():
     model = Sequential()
-
-    # Embedding layer
-    model.add(keras.layers.Flatten(input_shape=(8,)))
-    model.add(keras.layers.Dense(32, activation='relu'))
-
-    # Recurrent layer
-    model.add(LSTM(64, return_sequences=False,
-                   dropout=0.1, recurrent_dropout=0.1))
-
-    # Fully connected layer
-    model.add(Dense(64, activation='relu'))
-
-    # Dropout for regularization
+    model.add(LSTM(units=50, return_sequences=True, input_shape=(look_back, 12)))
+    model.add(LSTM(units=50, return_sequences=True))
     model.add(Dropout(0.5))
 
-    # Output layer
-    model.add(Dense(21, activation='softmax'))
+    model.add(LSTM(units=50, return_sequences=True))
+    model.add(Dropout(0.5))
 
+    model.add(LSTM(units=50,  return_sequences=False))
+    model.add(Dropout(0.5))
+
+    # model.add(Dense(units = 1))
+    model.add(Dense(23, activation='softmax'))
     # Compile the model
     model.compile(
-        optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-def main():
+        optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    return model
 
+def lstm_fit():
+    model = lstm_model()
+    features_set = np.load('np_lstm_feat.npy')
+    labels = np.load('np_lstm_labels.npy')
+
+    X_test = features_set[-300:]
+    y_test = labels[-300:]
+    history = model.fit(features_set, labels, epochs=200, batch_size=32)
+# Plot training & validation accuracy values
+    plt.plot(history.history['accuracy'])
+    plt.title('Model accuracy')
+    plt.ylabel('Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend(['Train'], loc='upper left')
+    plt.show()
+
+    # Plot training & validation loss values
+    plt.plot(history.history['loss'])
+    plt.title('Model loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Train'], loc='upper left')
+    plt.show()
+    scores = model.evaluate(X_test, y_test, verbose=0)
+    print("Accuracy: %.2f%%" % (scores[1] * 100))
+    serialize(model)
+    return model
+
+def main():
     # encode()
-    df = load_file()
+    #lstm_data_build()
+    lstm_fit()
     # plot_cameo_hist(df)
     # plot_selectbest(df)
     # plot_correlation(df)
     # xgboost()
-    generate_model_split(df.head(40000000))
+    # generate_model_split(df.head(40000000))
 
 
 if __name__ == "__main__": main()
