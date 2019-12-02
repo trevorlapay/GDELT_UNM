@@ -1,39 +1,45 @@
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import GBTClassifier
 from pyspark.ml.feature import StringIndexer, VectorIndexer, VectorAssembler
-from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-from pyspark.sql import functions as F
+
 # Load and parse the data file, converting it to a DataFrame.
 data = spark.read.format("csv").option("header", "true").load("data/gdelt_encoded_full.csv")
-stages = []
-for col in data.columns:
-  data = data.withColumn(
-    col,
-    F.col(col).cast("double")
-  )
+
 # Index labels, adding metadata to the label column.
 # Fit on whole dataset to include all labels in index.
-rf = RandomForestClassifier(labelCol="CAMEOCode", featuresCol="features", numTrees=10)
+labelIndexer = StringIndexer(inputCol="CAMEOCode", outputCol="indexedLabel").fit(data)
 # Automatically identify categorical features, and index them.
 # Set maxCategories so features with > 4 distinct values are treated as continuous.
-numericCols = ['Source','Target','NumEvents','NumArts','SourceGeoType',
-      'TargetGeoType', 'ActionGeoType','Month']
-assemblerInputs = numericCols
-data.printSchema()
-assembler = VectorAssembler(inputCols=assemblerInputs, outputCol="features")
-stages += [assembler]
-stages += [rf]
-pipeline = Pipeline(stages = stages)
-(trainingData, testData) = data.randomSplit([0.7, 0.3])
-pipelineModel = pipeline.fit(trainingData)
+ignore = ['CAMEOCode']
+assembler = VectorAssembler(
+    inputCols=[x for x in data.columns if x not in ignore],
+    outputCol='features')
+features = (assembler.transform(data).select("features"))
 
-predictions = pipelineModel.transform(testData)
-predictions.select("prediction", "CAMEOCode", "features").show(5)
+# Split the data into training and test sets (30% held out for testing)
+(trainingData, testData) = data.randomSplit([0.7, 0.3])
+
+# Train a GBT model.
+gbt = GBTClassifier(labelCol="indexedLabel", featuresCol="features", maxIter=10)
+
+# Chain indexers and GBT in a Pipeline
+pipeline = Pipeline(stages=[labelIndexer, features, gbt])
+
+# Train model.  This also runs the indexers.
+model = pipeline.fit(trainingData)
+
+# Make predictions.
+predictions = model.transform(testData)
+
+# Select example rows to display.
+predictions.select("prediction", "indexedLabel", "features").show(5)
 
 # Select (prediction, true label) and compute test error
 evaluator = MulticlassClassificationEvaluator(
-    labelCol="CAMEOCode", predictionCol="prediction", metricName="accuracy")
+    labelCol="indexedLabel", predictionCol="prediction", metricName="accuracy")
 accuracy = evaluator.evaluate(predictions)
 print("Test Error = %g" % (1.0 - accuracy))
 
+gbtModel = model.stages[2]
+print(gbtModel)  # summary only
