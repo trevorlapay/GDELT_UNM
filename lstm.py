@@ -8,8 +8,7 @@ model = Sequential()
 model.add(keras.layers.Flatten(input_shape=(8,)))
 model.add(keras.layers.Dense(32, activation='relu'))
 
-# Masking layer for pre-trained embeddings
-model.add(Masking(mask_value=0.0))
+
 
 # Recurrent layer
 model.add(LSTM(64, return_sequences=False,

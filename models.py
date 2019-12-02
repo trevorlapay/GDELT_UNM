@@ -21,6 +21,9 @@ from xgboost import plot_tree
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 import sklearn.preprocessing as pre
+from keras.layers import LSTM, Dense, Dropout, Masking, Embedding
+import keras as keras
+from keras.models import Sequential
 from keras.utils import to_categorical
 
 # constants
@@ -271,6 +274,29 @@ def load_file():
     return data_prep(big_data)
 
 
+def lstm_model():
+    model = Sequential()
+
+    # Embedding layer
+    model.add(keras.layers.Flatten(input_shape=(8,)))
+    model.add(keras.layers.Dense(32, activation='relu'))
+
+    # Recurrent layer
+    model.add(LSTM(64, return_sequences=False,
+                   dropout=0.1, recurrent_dropout=0.1))
+
+    # Fully connected layer
+    model.add(Dense(64, activation='relu'))
+
+    # Dropout for regularization
+    model.add(Dropout(0.5))
+
+    # Output layer
+    model.add(Dense(21, activation='softmax'))
+
+    # Compile the model
+    model.compile(
+        optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 def main():
 
     # encode()
