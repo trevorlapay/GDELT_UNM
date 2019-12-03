@@ -33,7 +33,7 @@ model_h5 = os.path.join(dir, 'model.h5')
 dir = os.path.dirname(__file__)
 training_data_filename = os.path.join(dir, '..','data','gdelt_abbrv.csv')
 
-look_back = 50
+look_back = 30
 batch_size = 32896*2*2*2
 epochs = 20
 cols=['Source','Target','CAMEOCode','NumEvents','NumArts','SourceGeoType',
@@ -318,9 +318,8 @@ def lstm_data_build():
     df = load_file()
     df_transform = pd.DataFrame()
     # 11263 = USA
-    df_transform = df.loc[df['Source'] == 11263]
+    df_transform = df.loc[(df['Source'] == 11263)]
     df_transform.to_csv('gdelt_usa.csv')
-    print(str(len(df_transform)))
     features_set = []
     labels = []
     for i in range(look_back, len(df_transform)):
@@ -333,14 +332,14 @@ def lstm_data_build():
 
 def lstm_model():
     model = Sequential()
-    model.add(LSTM(units=50, return_sequences=True, input_shape=(look_back, 12)))
-    model.add(LSTM(units=50, return_sequences=True))
+    model.add(LSTM(units=64, return_sequences=True, input_shape=(look_back, 12)))
+    model.add(LSTM(units=64, return_sequences=True))
     model.add(Dropout(0.5))
 
-    model.add(LSTM(units=50, return_sequences=True))
+    model.add(LSTM(units=64, return_sequences=True))
     model.add(Dropout(0.5))
 
-    model.add(LSTM(units=50,  return_sequences=False))
+    model.add(LSTM(units=64,  return_sequences=False))
     model.add(Dropout(0.5))
 
     # model.add(Dense(units = 1))
@@ -357,7 +356,7 @@ def lstm_fit():
 
     X_test = features_set[-300:]
     y_test = labels[-300:]
-    history = model.fit(features_set, labels, epochs=200, batch_size=32)
+    history = model.fit(features_set, labels, epochs=500, batch_size=64)
 # Plot training & validation accuracy values
     plt.plot(history.history['accuracy'])
     plt.title('Model accuracy')
