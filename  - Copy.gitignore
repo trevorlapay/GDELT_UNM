@@ -1,0 +1,4 @@
+# ignore gdelt file
+*gdelt.csv
+*venv/
+*.idea
